@@ -1,0 +1,138 @@
+2025-10-27 11:23:30,720 - INFO - 
+2025-10-27 11:23:30,721 - INFO - ============================================================
+2025-10-27 11:23:30,721 - INFO -              SCHWAB DATA EXTRACTION ORCHESTRATOR            
+2025-10-27 11:23:30,722 - INFO - ============================================================
+2025-10-27 11:23:30,722 - INFO - 
+2025-10-27 11:23:30,723 - INFO - Start time: 2025-10-27 11:23:30
+2025-10-27 11:23:30,723 - INFO - Download directory: downloads
+2025-10-27 11:23:30,723 - INFO - Output file: _OBD_SCHW_DATA_OUTPUT.xlsx
+2025-10-27 11:23:30,723 - INFO - 
+2025-10-27 11:23:30,724 - INFO - ============================================================
+2025-10-27 11:23:30,724 - INFO - STEP 1: DOWNLOADING PDF FILES
+2025-10-27 11:23:30,724 - INFO - ============================================================
+2025-10-27 11:23:30,724 - INFO - Running command: C:\Users\Execo Training\AppData\Local\Programs\Python\Python313\python.exe main.py --download-dir downloads
+2025-10-27 11:24:23,969 - INFO - 
+=== Schwab Financial Report Downloader ===
+
+Download directory: downloads
+Headless mode: False
+
+[+] Chrome driver initialized (Headless: False)
+Navigating to: https://www.aboutschwab.com/financial-reports#panel-25-75--5376
+[+] Successfully navigated to the financial reports page
+[*] Scanning all quarters to find the latest...
+  Found 4 earnings release links
+  Found: THIRD QUARTER 2025 - RELEASED 10/16/25
+  Found: SECOND QUARTER 2025 - RELEASED 07/18/25
+  Found: FIRST QUARTER 2025 - RELEASED 04/17/25
+  Found: FOURTH QUARTER 2024 - RELEASED 01/21/25
+
+[+] Latest quarterly report: THIRD QUARTER 2025
+  Released: RELEASED 10/16/25
+  URL: https://content.schwab.com/web/retail/public/about-schwab/schwab_q3_2025_earnings_release.pdf
+Downloading: schwab_q3_2025_earnings_release.pdf
+  Attempting direct download with requests...
+[+] Downloaded via requests: downloads\schwab_q3_2025_earnings_release.pdf
+
+[+] Successfully downloaded the latest quarterly report!
+  File saved to: downloads\schwab_q3_2025_earnings_release.pdf
+
+[*] Navigating to investor relations page...
+[*] Searching for 13-week trading activity report...
+[+] Found 13-week trading activity report
+  URL: https://content.schwab.com/web/retail/public/about-schwab/13-week-table-trades-07212025-to--10172025.pdf
+Downloading: 13-week-table-trades-07212025-to--10172025.pdf
+  Attempting direct download with requests...
+[+] Downloaded via requests: downloads\13-week-table-trades-07212025-to--10172025.pdf
+
+[+] Successfully downloaded the 13-week trading activity report!
+  File saved to: downloads\13-week-table-trades-07212025-to--10172025.pdf
+
+[*] Searching for latest SMART supplement...
+[*] Navigating to financial reports page...
+[*] Found 5 SMART supplement link(s)
+  Found: Aug 2025 - https://content.schwab.com/web/retail/public/about-schwab/Schwab_Aug2025_SMART_supplement.pdf
+  Found: Sep 2025 - https://content.schwab.com/web/retail/public/about-schwab/schw_Sept2025_SMART_supplement.pdf
+  Found: Jun 2025 - https://content.schwab.com/web/retail/public/about-schwab/Schwab_Jun2025_SMART_supplement.pdf
+  Found: Mar 2025 - https://content.schwab.com/web/retail/public/about-schwab/Schwab_Mar2025_SMART_supplement.pdf
+  Found: Dec 2024 - https://content.schwab.com/web/retail/public/about-schwab/Schwab_Dec2024_SMART_supplement.pdf
+
+[+] Latest SMART supplement: Sep 2025
+  URL: https://content.schwab.com/web/retail/public/about-schwab/schw_Sept2025_SMART_supplement.pdf
+Downloading: schw_Sept2025_SMART_supplement.pdf
+  Attempting direct download with requests...
+[+] Downloaded via requests: downloads\schw_Sept2025_SMART_supplement.pdf
+
+[+] Successfully downloaded the SMART supplement!
+  File saved to: downloads\schw_Sept2025_SMART_supplement.pdf
+
+[+] Total files downloaded: 3
+
+Closing browser...
+
+2025-10-27 11:24:23,971 - INFO - [SUCCESS] Download completed successfully
+2025-10-27 11:24:23,971 - INFO - 
+[*] Verifying downloaded files...
+2025-10-27 11:24:23,972 - INFO -   [OK] Found *earnings_release*.pdf: schwab_q3_2025_earnings_release.pdf
+2025-10-27 11:24:23,972 - INFO -   [OK] Found *13-week*.pdf: 13-week-table-trades-07212025-to--10172025.pdf
+2025-10-27 11:24:23,973 - INFO -   [OK] Found *SMART*.pdf: schw_Sept2025_SMART_supplement.pdf
+2025-10-27 11:24:23,973 - INFO -   [OK] All required files present
+2025-10-27 11:24:23,973 - INFO - ============================================================
+2025-10-27 11:24:23,973 - INFO - STEP 2: EXTRACTING AND MAPPING DATA
+2025-10-27 11:24:23,973 - INFO - ============================================================
+2025-10-27 11:24:23,974 - INFO - Running command: C:\Users\Execo Training\AppData\Local\Programs\Python\Python313\python.exe map.py --download-dir downloads --output _OBD_SCHW_DATA_OUTPUT.xlsx
+2025-10-27 11:24:25,895 - INFO - 
+=== Schwab Data Mapper ===
+
+[+] Quarterly report: schwab_q3_2025_earnings_release.pdf
+[+] Trading report: 13-week-table-trades-07212025-to--10172025.pdf
+[+] SMART supplement: schw_Sept2025_SMART_supplement.pdf
+
+[*] Extracting quarterly margin balances from Financial Highlights...
+[+] Financial Highlights detected on page 5
+[+] Found 5 quarterly margin values: ['93.8', '82.8', '84.4', '85.4', '74.0']
+
+[*] Locating Monthly Activity Report...
+[+] Monthly Activity Report detected on page 9
+
+[*] Extracting monthly report data...
+[+] Found 13 months: ['Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep']
+[+] Month keys: ['2024-09', '2024-10', '2024-11', '2024-12', '2025-01', '2025-02', '2025-03', '2025-04', '2025-05', '2025-06', '2025-07', '2025-08', '2025-09']
+[+] Extracted data for 13 months
+
+[*] Extracting trading activity data...
+[+] Found 13 weekly trade values
+[+] Extracted trading data for 4 months
+
+[*] Extracting SMART supplement data...
+[+] Extracted 9 fund categories from SMART supplement
+[+] Extracted SMART data for 13 months
+
+[*] Building final dataset...
+
+[*] Applying quarterly value logic and calculating Margin Loan Balances...
+
+[*] Mapping quarterly margin balances from Financial Highlights...
+  2024-Q3: $74.0B applied to 1 months
+  2024-Q4: $85.4B applied to 3 months
+  2025-Q1: $84.4B applied to 3 months
+  2025-Q2: $82.8B applied to 3 months
+  2025-Q3: $93.8B applied to 3 months
+[+] Built dataset with 13 rows and 31 columns
+[+] Processed 5 quarters
+
+[+] Data saved to: _OBD_SCHW_DATA_OUTPUT.xlsx
+[+] Column order is fixed and consistent
+
+[+] Extraction complete!
+
+2025-10-27 11:24:25,897 - INFO - [SUCCESS] Data mapping completed successfully
+2025-10-27 11:24:25,898 - INFO - [SUCCESS] Output saved to: _OBD_SCHW_DATA_OUTPUT.xlsx
+2025-10-27 11:24:25,898 - INFO - 
+2025-10-27 11:24:25,898 - INFO - ============================================================
+2025-10-27 11:24:25,898 - INFO - [SUCCESS] ORCHESTRATION COMPLETED SUCCESSFULLY
+2025-10-27 11:24:25,898 - INFO - ============================================================
+2025-10-27 11:24:25,898 - INFO - End time: 2025-10-27 11:24:25
+2025-10-27 11:24:25,899 - INFO - Duration: 55.18 seconds
+2025-10-27 11:24:25,899 - INFO - Output file: _OBD_SCHW_DATA_OUTPUT.xlsx
+2025-10-27 11:24:25,899 - INFO - 
