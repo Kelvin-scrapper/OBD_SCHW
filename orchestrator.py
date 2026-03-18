@@ -15,8 +15,8 @@ import logging
 class DataExtractionOrchestrator:
     """Orchestrates the download and data mapping processes."""
 
-    def __init__(self, download_dir='./downloads', output_file='_OBD_SCHW_DATA_OUTPUT.xlsx',
-                 headless=False, skip_download=False):
+    def __init__(self, download_dir='./downloads', output_file='./output/_OBD_SCHW_DATA_OUTPUT.xlsx',
+                 headless=True, skip_download=False):
         """
         Initialize the orchestrator.
 
@@ -37,13 +37,24 @@ class DataExtractionOrchestrator:
     def setup_logging(self):
         """Configure logging for the orchestrator."""
         log_format = '%(asctime)s - %(levelname)s - %(message)s'
+
+        # Setup file handler with UTF-8 encoding
+        file_handler = logging.FileHandler('orchestrator.log', encoding='utf-8')
+        file_handler.setFormatter(logging.Formatter(log_format))
+
+        # Setup console handler with UTF-8 encoding
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setFormatter(logging.Formatter(log_format))
+
+        # Force UTF-8 for stdout on Windows
+        if sys.platform == 'win32':
+            import codecs
+            sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+
         logging.basicConfig(
             level=logging.INFO,
             format=log_format,
-            handlers=[
-                logging.StreamHandler(sys.stdout),
-                logging.FileHandler('orchestrator.log')
-            ]
+            handlers=[console_handler, file_handler]
         )
         self.logger = logging.getLogger(__name__)
 
@@ -92,12 +103,14 @@ class DataExtractionOrchestrator:
                 return False
 
         except subprocess.CalledProcessError as e:
-            self.logger.error(f"✗ Download failed: {e}")
+            self.logger.error(f"[X] Download failed: {e}")
+            if e.stdout:
+                self.logger.error(f"Output: {e.stdout}")
             if e.stderr:
                 self.logger.error(f"Error output: {e.stderr}")
             return False
         except Exception as e:
-            self.logger.error(f"✗ Unexpected error during download: {e}")
+            self.logger.error(f"[X] Unexpected error during download: {e}")
             return False
 
     def run_mapper(self):
@@ -144,12 +157,12 @@ class DataExtractionOrchestrator:
                 return False
 
         except subprocess.CalledProcessError as e:
-            self.logger.error(f"✗ Data mapping failed: {e}")
+            self.logger.error(f"[X] Data mapping failed: {e}")
             if e.stderr:
                 self.logger.error(f"Error output: {e.stderr}")
             return False
         except Exception as e:
-            self.logger.error(f"✗ Unexpected error during mapping: {e}")
+            self.logger.error(f"[X] Unexpected error during mapping: {e}")
             return False
 
     def verify_downloads(self):
@@ -280,14 +293,21 @@ Examples:
     parser.add_argument(
         '--output', '-o',
         type=str,
-        default='_OBD_SCHW_DATA_OUTPUT.xlsx',
-        help='Output Excel file path (default: _OBD_SCHW_DATA_OUTPUT.xlsx)'
+        default='./output/_OBD_SCHW_DATA_OUTPUT.xlsx',
+        help='Output Excel file path (default: ./output/_OBD_SCHW_DATA_OUTPUT.xlsx)'
     )
 
     parser.add_argument(
         '--headless',
         action='store_true',
-        help='Run browser in headless mode for downloads'
+        default=True,
+        help='Run browser in headless mode for downloads (default: True)'
+    )
+    parser.add_argument(
+        '--no-headless',
+        dest='headless',
+        action='store_false',
+        help='Run browser in normal (visible) mode'
     )
 
     parser.add_argument(

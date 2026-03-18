@@ -5,8 +5,10 @@ using undetected-chromedriver and Selenium with configurable headless mode.
 """
 
 import os
+import sys
 import time
 import requests
+import subprocess
 from pathlib import Path
 from datetime import datetime
 import re
@@ -23,7 +25,7 @@ class SchwabReportDownloader:
     def __init__(self, download_dir=None, headless=False):
         """
         Initialize the downloader.
-        
+
         Args:
             download_dir (str): Directory to save downloads. Defaults to current directory.
             headless (bool): Run browser in headless mode. Default is False.
@@ -33,52 +35,127 @@ class SchwabReportDownloader:
         self.base_url = "https://www.aboutschwab.com/financial-reports#panel-25-75--5376"
         self.investor_relations_url = "https://www.aboutschwab.com/investor-relations"
         self.driver = None
-        
+
         # Create download directory if it doesn't exist
         Path(self.download_dir).mkdir(parents=True, exist_ok=True)
+
+    def get_chrome_version(self):
+        """Detect installed Chrome version."""
+        try:
+            if sys.platform == 'win32':
+                # Windows - check file system for version folder
+                chrome_paths = [
+                    r"C:\Program Files\Google\Chrome\Application",
+                    r"C:\Program Files (x86)\Google\Chrome\Application",
+                    os.path.join(os.environ.get('LOCALAPPDATA', ''), r'Google\Chrome\Application'),
+                ]
+
+                for chrome_path in chrome_paths:
+                    if os.path.exists(chrome_path):
+                        # Look for version folder (e.g., 142.0.7444.177)
+                        for item in os.listdir(chrome_path):
+                            if re.match(r'^\d+\.\d+\.\d+\.\d+$', item):
+                                major_version = item.split('.')[0]
+                                print(f"[*] Detected Chrome version: {item} (major: {major_version})")
+                                return int(major_version)
+            else:
+                # Linux/Mac - use command line
+                result = subprocess.run(['google-chrome', '--version'],
+                                      capture_output=True, text=True)
+                version = re.search(r'(\d+)\.', result.stdout)
+                if version:
+                    major_version = version.group(1)
+                    print(f"[*] Detected Chrome version: {major_version}")
+                    return int(major_version)
+        except Exception as e:
+            print(f"[!] Could not detect Chrome version: {e}")
+
+        return None
         
     def setup_driver(self):
-        """Set up undetected Chrome driver with appropriate options."""
-        options = uc.ChromeOptions()
-        
-        # Configure headless mode
-        if self.headless:
-            options.add_argument('--headless=new')  # Use new headless mode for better compatibility
-            options.add_argument('--no-sandbox')
-            options.add_argument('--disable-dev-shm-usage')
-            
-        # General options for better performance and compatibility
-        options.add_argument('--disable-blink-features=AutomationControlled')
-        options.add_argument('--disable-gpu')
-        options.add_argument('--window-size=1920,1080')
-        options.add_argument('--start-maximized')
-        options.add_argument('--disable-web-security')
-        options.add_argument('--disable-features=VizDisplayCompositor')
-        options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
-        
-        # Download preferences
-        prefs = {
-            'download.default_directory': self.download_dir,
-            'download.prompt_for_download': False,
-            'download.directory_upgrade': True,
-            'safebrowsing.enabled': True,
-            'plugins.always_open_pdf_externally': True,  # Download PDFs instead of opening them
-        }
-        options.add_experimental_option('prefs', prefs)
-        
-        # Additional options to avoid detection
-        # options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        # options.add_experimental_option('useAutomationExtension', False)
-        
-        # Initialize undetected Chrome driver
-        self.driver = uc.Chrome(options=options, version_main=None)
-        
-        # Execute CDP commands to avoid detection
-        self.driver.execute_cdp_cmd('Network.setUserAgentOverride', {
-            "userAgent": self.driver.execute_script("return navigator.userAgent").replace("Headless", "")
-        })
-        
-        print(f"[+] Chrome driver initialized (Headless: {self.headless})")
+        """Set up undetected Chrome driver with automatic version matching."""
+        # Get absolute download path
+        download_path = os.path.abspath(self.download_dir)
+
+        # Detect Chrome version
+        chrome_version = self.get_chrome_version()
+
+        def create_chrome_options():
+            """Create a fresh ChromeOptions object with our settings."""
+            options = uc.ChromeOptions()
+
+            # Configure headless mode
+            if self.headless:
+                options.add_argument('--headless=new')
+                options.add_argument('--no-sandbox')
+                options.add_argument('--disable-dev-shm-usage')
+
+            # General options for better performance and compatibility
+            options.add_argument('--disable-blink-features=AutomationControlled')
+            options.add_argument('--disable-gpu')
+            options.add_argument('--window-size=1920,1080')
+            options.add_argument('--start-maximized')
+
+            # Download preferences
+            prefs = {
+                'download.default_directory': download_path,
+                'download.prompt_for_download': False,
+                'download.directory_upgrade': True,
+                'safebrowsing.enabled': True,
+                'plugins.always_open_pdf_externally': True,
+            }
+            options.add_experimental_option('prefs', prefs)
+
+            return options
+
+        print("[*] Initializing Chrome driver with automatic version matching...")
+
+        # Try multiple initialization strategies with detected version
+        strategies = [
+            # Strategy 1: Use detected version with options
+            lambda: uc.Chrome(options=create_chrome_options(), version_main=chrome_version, use_subprocess=True),
+            # Strategy 2: Use detected version without subprocess
+            lambda: uc.Chrome(options=create_chrome_options(), version_main=chrome_version),
+            # Strategy 3: Minimal with detected version
+            lambda: uc.Chrome(headless=self.headless, version_main=chrome_version, use_subprocess=True),
+            # Strategy 4: Let UC auto-detect
+            lambda: uc.Chrome(options=create_chrome_options(), use_subprocess=True),
+            # Strategy 5: Bare minimum
+            lambda: uc.Chrome(headless=self.headless),
+        ]
+
+        last_error = None
+        for i, strategy in enumerate(strategies, 1):
+            try:
+                print(f"[*] Trying initialization strategy {i}...")
+                self.driver = strategy()
+                print(f"[+] Chrome driver initialized successfully using strategy {i} (Headless: {self.headless})")
+
+                # Try to set user agent override (optional)
+                try:
+                    self.driver.execute_cdp_cmd('Network.setUserAgentOverride', {
+                        "userAgent": self.driver.execute_script("return navigator.userAgent").replace("Headless", "")
+                    })
+                except:
+                    pass  # Ignore if this fails
+
+                return  # Success!
+
+            except Exception as e:
+                last_error = e
+                error_msg = str(e)
+                print(f"[!] Strategy {i} failed: {error_msg[:100]}...")
+
+                if i < len(strategies):
+                    print(f"[*] Trying next approach...")
+                continue
+
+        # If all strategies failed, raise the last error
+        print(f"[-] All initialization strategies failed")
+        if last_error:
+            raise last_error
+        else:
+            raise RuntimeError("Failed to initialize Chrome driver")
         
     def navigate_to_page(self):
         """Navigate to the Schwab financial reports page."""
@@ -136,48 +213,30 @@ class SchwabReportDownloader:
             for link in all_earnings_links:
                 try:
                     href = link.get_attribute('href')
-                    text = link.text or link.get_attribute('aria-label') or ''
-
-                    # Only process "PRESS RELEASE AND TABLES" links
-                    if 'PRESS RELEASE AND TABLES' not in text:
+                    if not href:
                         continue
 
-                    # Find parent container to get quarter name and release date
-                    # Try multiple parent levels
-                    parent = None
-                    for i in range(1, 6):
-                        try:
-                            test_parent = link.find_element(By.XPATH, f"./ancestor::div[{i}]")
-                            # Check if this parent contains QUARTER heading and RELEASED text
-                            parent_html = test_parent.get_attribute('innerHTML') or ''
-                            if 'QUARTER' in parent_html and 'RELEASED' in parent_html:
-                                parent = test_parent
-                                break
-                        except:
-                            continue
-
-                    if not parent:
+                    # Extract quarter and year from URL
+                    # Pattern: q{1-4}_{year}_earnings_release.pdf
+                    url_match = re.search(r'q([1-4])_(\d{4})_earnings_release', href, re.IGNORECASE)
+                    if not url_match:
                         continue
 
-                    # Extract quarter name
-                    quarter_elem = parent.find_element(By.XPATH, ".//*[contains(text(), 'QUARTER 20')]")
-                    quarter_name = quarter_elem.text
+                    quarter_num = int(url_match.group(1))
+                    year = int(url_match.group(2))
+                    quarter_name = f"Q{quarter_num} QUARTER {year}"
+                    release_date_str = f"Q{quarter_num} {year}"
+                    # Use end-of-quarter month as approximate release date for sorting
+                    release_date = datetime(year, quarter_num * 3, 1)
 
-                    # Extract release date
-                    release_date_elem = parent.find_element(By.XPATH, ".//*[contains(text(), 'RELEASED')]")
-                    release_date_str = release_date_elem.text
-                    release_date = self.parse_release_date(release_date_str)
-
-                    if release_date:
-                        quarterly_reports.append({
-                            'quarter': quarter_name,
-                            'release_date': release_date,
-                            'release_date_str': release_date_str,
-                            'text': text,
-                            'url': href,
-                            'element': link
-                        })
-                        print(f"  Found: {quarter_name} - {release_date_str}")
+                    quarterly_reports.append({
+                        'quarter': quarter_name,
+                        'release_date': release_date,
+                        'release_date_str': release_date_str,
+                        'url': href,
+                        'element': link
+                    })
+                    print(f"  Found: {quarter_name}")
                 except Exception as e:
                     # Skip links that don't have the required structure
                     continue
@@ -240,13 +299,12 @@ class SchwabReportDownloader:
             traceback.print_exc()
             return None
 
-    def find_smart_supplement(self):
-        """Find and return the latest SMART supplement PDF from financial reports page."""
+    def find_monthly_client_metrics(self):
+        """Find and return the monthly activity report link from the main page announcement."""
         try:
-            print("\n[*] Searching for latest SMART supplement...")
+            print("\n[*] Searching for monthly activity report announcement...")
 
-            # We should already be on the financial reports page from previous navigation
-            # If not, navigate there
+            # We should already be on the financial reports page
             if 'financial-reports' not in self.driver.current_url:
                 print("[*] Navigating to financial reports page...")
                 self.driver.get(self.base_url)
@@ -255,82 +313,95 @@ class SchwabReportDownloader:
                     lambda driver: driver.execute_script("return document.readyState") == "complete"
                 )
 
-            # Find all links containing "SMART" (case insensitive) and ".pdf"
-            smart_links = self.driver.find_elements(By.XPATH, "//a[contains(translate(@href, 'SMART', 'smart'), 'smart') and contains(@href, '.pdf')]")
+            # Find the announcement text that matches the pattern:
+            # "Schwab released its monthly activity report for [MONTH] [YEAR]."
+            # The link text is usually "View release and table" or similar
 
-            if not smart_links:
-                print("[-] No SMART supplement links found")
-                return None
+            # Strategy 1: Look for text containing "monthly activity report"
+            try:
+                announcement_elements = self.driver.find_elements(
+                    By.XPATH,
+                    "//*[contains(text(), 'monthly activity report for')]"
+                )
 
-            print(f"[*] Found {len(smart_links)} SMART supplement link(s)")
+                if announcement_elements:
+                    print(f"[*] Found {len(announcement_elements)} announcement element(s)")
 
-            # Parse dates from filenames and find the most recent
-            supplements = []
-            for link in smart_links:
-                try:
+                    # Get the parent element and find the link
+                    for elem in announcement_elements:
+                        try:
+                            # Search progressively higher ancestor divs for any PDF link
+                            view_links = []
+                            for ancestor_level in range(1, 8):
+                                try:
+                                    parent = elem.find_element(By.XPATH, f"./ancestor::div[{ancestor_level}]")
+                                    view_links = parent.find_elements(By.XPATH, ".//a[contains(@href, '.pdf') or contains(text(), 'View release') or contains(text(), 'release and table')]")
+                                    if view_links:
+                                        break
+                                except:
+                                    continue
+
+                            if view_links:
+                                link = view_links[0]
+                                href = link.get_attribute('href')
+                                text = link.text or link.get_attribute('title') or 'Monthly Activity Report'
+
+                                # Extract month/year from announcement text for logging
+                                announcement_text = elem.text
+                                month_year_match = re.search(r'for\s+(\w+\s+\d{4})', announcement_text)
+                                month_year = month_year_match.group(1) if month_year_match else "latest"
+
+                                print(f"[+] Found monthly activity report for {month_year}")
+                                print(f"  Link text: {text}")
+                                print(f"  URL: {href}")
+
+                                return {
+                                    'text': text,
+                                    'url': href,
+                                    'element': link,
+                                    'month_year': month_year
+                                }
+                        except Exception as e:
+                            print(f"  [!] Error processing announcement element: {e}")
+                            continue
+
+            except Exception as e:
+                print(f"  [!] Strategy 1 failed: {e}")
+
+            # Strategy 2: Look for links with "SMART" in the visible page section (not in archived sections)
+            # This finds the featured/highlighted SMART supplement link
+            try:
+                print("[*] Trying alternative strategy - looking for featured SMART link...")
+                # Look for SMART links in the main content area (exclude archived sections)
+                smart_links = self.driver.find_elements(
+                    By.XPATH,
+                    "//a[contains(@href, 'SMART') and contains(@href, '.pdf') and not(ancestor::*[contains(@class, 'archive') or contains(@id, 'archive')])]"
+                )
+
+                if smart_links:
+                    # Get the first one (should be the most recent)
+                    link = smart_links[0]
                     href = link.get_attribute('href')
-                    text = link.text or link.get_attribute('title') or ''
+                    text = link.text or link.get_attribute('title') or 'Monthly Client Metrics'
 
-                    # Extract date from filename (e.g., "Sept2025", "September2025", "Sep2025")
-                    # Pattern: Month name + Year (4 digits)
-                    date_match = re.search(r'(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*(\d{4})', href, re.IGNORECASE)
+                    print(f"[+] Found featured SMART supplement link")
+                    print(f"  Link text: {text}")
+                    print(f"  URL: {href}")
 
-                    if date_match:
-                        month_str = date_match.group(1)
-                        year = int(date_match.group(2))
+                    return {
+                        'text': text,
+                        'url': href,
+                        'element': link
+                    }
 
-                        # Convert month string to number
-                        month_map = {
-                            'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4,
-                            'may': 5, 'jun': 6, 'jul': 7, 'aug': 8,
-                            'sep': 9, 'sept': 9, 'oct': 10, 'nov': 11, 'dec': 12
-                        }
-                        month = month_map.get(month_str.lower()[:3], 1)
+            except Exception as e:
+                print(f"  [!] Strategy 2 failed: {e}")
 
-                        # Create a comparable date
-                        date_value = datetime(year, month, 1)
-
-                        supplements.append({
-                            'link': link,
-                            'href': href,
-                            'text': text,
-                            'date': date_value,
-                            'date_str': f"{month_str} {year}"
-                        })
-                        print(f"  Found: {month_str} {year} - {href}")
-                    else:
-                        # If no date found, still keep it but with lowest priority
-                        supplements.append({
-                            'link': link,
-                            'href': href,
-                            'text': text,
-                            'date': datetime(1900, 1, 1),
-                            'date_str': 'Unknown date'
-                        })
-
-                except Exception as e:
-                    print(f"  [-] Error parsing link: {e}")
-                    continue
-
-            if not supplements:
-                print("[-] No SMART supplement with valid date found")
-                return None
-
-            # Sort by date (most recent first)
-            supplements.sort(key=lambda x: x['date'], reverse=True)
-
-            latest = supplements[0]
-            print(f"\n[+] Latest SMART supplement: {latest['date_str']}")
-            print(f"  URL: {latest['href']}")
-
-            return {
-                'text': latest['text'] or f"SMART supplement {latest['date_str']}",
-                'url': latest['href'],
-                'element': latest['link']
-            }
+            print("[-] Could not find monthly activity report announcement")
+            return None
 
         except Exception as e:
-            print(f"[-] Error finding SMART supplement: {e}")
+            print(f"[-] Error finding monthly client metrics: {e}")
             import traceback
             traceback.print_exc()
             return None
@@ -442,21 +513,21 @@ class SchwabReportDownloader:
             else:
                 print("\n[-] Could not find the 13-week trading activity report")
 
-            # Find and download SMART supplement
-            smart_supplement_info = self.find_smart_supplement()
+            # Find and download Monthly Client Metrics (from announcement section)
+            monthly_metrics_info = self.find_monthly_client_metrics()
 
-            if smart_supplement_info:
-                # Download the SMART supplement
-                downloaded_file = self.download_file(smart_supplement_info['url'])
+            if monthly_metrics_info:
+                # Download the Monthly Client Metrics
+                downloaded_file = self.download_file(monthly_metrics_info['url'])
 
                 if downloaded_file:
-                    print(f"\n[+] Successfully downloaded the SMART supplement!")
+                    print(f"\n[+] Successfully downloaded the Monthly Client Metrics!")
                     print(f"  File saved to: {downloaded_file}")
                     downloaded_files.append(downloaded_file)
                 else:
-                    print("\n[-] Failed to download the SMART supplement")
+                    print("\n[-] Failed to download the Monthly Client Metrics")
             else:
-                print("\n[-] Could not find the SMART supplement")
+                print("\n[-] Could not find the Monthly Client Metrics")
 
             # Return True if at least one file was downloaded
             if downloaded_files:
@@ -471,10 +542,19 @@ class SchwabReportDownloader:
             return False
             
         finally:
-            # Clean up
+            # Clean up - handle Windows cleanup issues gracefully
             if self.driver:
                 print("\nClosing browser...")
-                self.driver.quit()
+                try:
+                    self.driver.quit()
+                except OSError as e:
+                    # Ignore Windows handle errors during cleanup
+                    if "WinError 6" in str(e) or "handle is invalid" in str(e):
+                        print("[!] Browser closed (ignoring cleanup warning)")
+                    else:
+                        print(f"[!] Warning during browser cleanup: {e}")
+                except Exception as e:
+                    print(f"[!] Warning during browser cleanup: {e}")
 
 
 def main():
@@ -489,7 +569,7 @@ def main():
                       help='Run browser in headless mode')
     parser.add_argument('--no-headless', dest='headless', action='store_false',
                       help='Run browser in normal mode (default)')
-    parser.set_defaults(headless=False)
+    parser.set_defaults(headless=True)
     
     args = parser.parse_args()
     
@@ -507,4 +587,4 @@ def main():
 
 
 if __name__ == "__main__":
-    exit(main())
+    sys.exit(main())
